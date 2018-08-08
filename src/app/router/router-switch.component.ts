@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { Observable, Observer, BehaviorSubject, Subscription, Subject, from } from 'rxjs';
 import { RouterOutletComponent } from './router-outlet.component';
-import { mergeAll, map, switchMap, share, filter } from '../../../node_modules/rxjs/operators';
+import { mergeAll, map, switchMap, share, filter } from 'rxjs/operators';
 
 @Component({
   selector: 'router-switch',
