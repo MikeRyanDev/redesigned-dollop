@@ -27,35 +27,38 @@ import { Component } from '@angular/core';
           About Page
         </ng-container>
       </router-outlet>
-      <!--<ng-container *routerMiss>
-        <h2>404 Not Found</h2>
-      </ng-container>-->
-    </router-switch>
 
-    <router-outlet path="/contributors" exact>
-      <ng-container *routerMatch>
-        <ul>
-          <li *ngFor="let contributor of contributors">
-            <a [routerLink]="'/contributors/' + contributor.id">
-              {{ contributor.name }}
-            </a>
-          </li>
-        </ul>
-      </ng-container>
-
-      <router-outlet path="/:id" (activate)="getActiveContributor($event)">
-        <ng-template routerMatch>
-          <div *ngIf="activeContributor; else contributorNotFound">
-            <h3>{{ activeContributor.name }}</h3>
-            <p>{{activeContributor.description}}</p>
-          </div>
-    
-          <ng-template #contributorNotFound>
-            No contributor found
+      <router-outlet path="/contributors" exact>
+        <ng-container *routerMatch>
+          <ul>
+            <li *ngFor="let contributor of contributors">
+              <a [routerLink]="'/contributors/' + contributor.id">
+                {{ contributor.name }}
+              </a>
+            </li>
+          </ul>
+        </ng-container>
+  
+        <router-outlet path="/:id" (activate)="getActiveContributor($event)">
+          <ng-template routerMatch>
+            <div *ngIf="activeContributor; else contributorNotFound">
+              <h3>{{ activeContributor.name }}</h3>
+              <p>{{activeContributor.description}}</p>
+            </div>
+      
+            <ng-template #contributorNotFound>
+              No contributor found
+            </ng-template>
           </ng-template>
-        </ng-template>
+        </router-outlet>
       </router-outlet>
-    </router-outlet>
+
+      <router-outlet path="/(.*)">
+        <ng-container *routerMatch>
+          <h2>404 Not Found</h2>
+        </ng-container>
+      </router-outlet>
+    </router-switch>
     
   `,
   styles: [],
