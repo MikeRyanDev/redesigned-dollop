@@ -38,19 +38,19 @@ import { Component } from '@angular/core';
             </li>
           </ul>
         </ng-container>
-  
-        <router-outlet path="/:id" (activate)="getActiveContributor($event)">
-          <ng-template routerMatch>
-            <div *ngIf="activeContributor; else contributorNotFound">
-              <h3>{{ activeContributor.name }}</h3>
-              <p>{{activeContributor.description}}</p>
-            </div>
-      
-            <ng-template #contributorNotFound>
-              No contributor found
-            </ng-template>
+      </router-outlet>
+
+      <router-outlet path="/contributors/:id" (activate)="getActiveContributor($event)">
+        <ng-template routerMatch>
+          <div *ngIf="activeContributor; else contributorNotFound">
+            <h3>{{ activeContributor.name }}</h3>
+            <p>{{activeContributor.description}}</p>
+          </div>
+    
+          <ng-template #contributorNotFound>
+            No contributor found
           </ng-template>
-        </router-outlet>
+        </ng-template>
       </router-outlet>
 
       <router-outlet>
