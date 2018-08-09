@@ -7,20 +7,21 @@ import {
   Host,
   ChangeDetectorRef,
 } from '@angular/core';
-import { BehaviorSubject, Subscription, Observable } from 'rxjs';
-import { filter, distinctUntilKeyChanged, map, tap } from 'rxjs/operators';
+import { Subscription, Observable } from 'rxjs';
+import { filter, distinctUntilKeyChanged, map } from 'rxjs/operators';
 import * as qs from 'query-string';
 import { Invariant } from './invariant.service';
 import { Params, matchPattern, makeParams } from './math-pattern';
 import { Router } from './router.service';
 import { RouterSwitchComponent } from './router-switch.component';
+import { localState } from './local-state.util';
 
 export interface RouterOutletState {
   selectedBySwitch: boolean;
   doesMatch: boolean;
   mustBeExact: boolean;
   isActive: boolean;
-  path: null | string;
+  path: string;
   browserPath: string;
   routeParams: null | Params;
   queryParams: null | Params;
@@ -42,7 +43,7 @@ const initialState: RouterOutletState = {
   doesMatch: false,
   mustBeExact: false,
   isActive: false,
-  path: null,
+  path: '/(.*)',
   browserPath: '',
   routeParams: null,
   queryParams: null,
@@ -56,20 +57,82 @@ const initialState: RouterOutletState = {
   `,
 })
 export class RouterOutletComponent {
+  constructor(
+    private invariant: Invariant,
+    private router: Router,
+    private cdRef: ChangeDetectorRef,
+    @SkipSelf()
+    @Optional()
+    private parent: RouterOutletComponent,
+    @Host()
+    @Optional()
+    private parentSwitch: RouterSwitchComponent,
+  ) {}
+
   private _subscriptions = new Subscription();
-  private _state$ = new BehaviorSubject<RouterOutletState>(initialState);
+  private _state$ = localState<RouterOutletState, RouterOutletEvents>(
+    (state = initialState, event) => {
+      switch (event.type) {
+        case 'PATH_ATTR_CHANGE': {
+          return checkIfOutletIsMatched({
+            ...state,
+            path: event.path,
+          });
+        }
+
+        case 'BROWSER_LOCATION_CHANGE': {
+          return checkIfOutletIsMatched({
+            ...state,
+            browserPath: event.path,
+          });
+        }
+
+        case 'PARENT_STATE_CHANGE': {
+          return checkIfOutletIsMatched({
+            ...state,
+            parent: event.state,
+          });
+        }
+
+        case 'SWITCH_DETECTED': {
+          return checkIfOutletIsMatched({
+            ...state,
+            selectedBySwitch: false,
+          });
+        }
+
+        case 'SWITCH_SELECT_OUTLET': {
+          return checkIfOutletIsMatched({
+            ...state,
+            selectedBySwitch: event.isSelected,
+          });
+        }
+
+        case 'EXACT_ATTR_CHANGE': {
+          return checkIfOutletIsMatched({
+            ...state,
+            mustBeExact: event.isExact,
+          });
+        }
+
+        default: {
+          return state;
+        }
+      }
+    },
+    this.cdRef,
+  );
 
   @Input()
   set path(path: string) {
-    this.invariant.assert(typeof path !== 'string', 'A valid path must be provided', path);
     this.invariant.assert(path[0] !== '/', 'Paths must start with a "/"', path);
 
-    this.handleEvent({ type: 'PATH_ATTR_CHANGE', path });
+    this._state$.dispatch({ type: 'PATH_ATTR_CHANGE', path });
   }
 
   @Input()
   set exact(attributeValue: string | null | boolean) {
-    this.handleEvent({
+    this._state$.dispatch({
       type: 'EXACT_ATTR_CHANGE',
       isExact: attributeValue === null || attributeValue === '' || Boolean(attributeValue),
     });
@@ -102,7 +165,7 @@ export class RouterOutletComponent {
   );
 
   get state() {
-    return this._state$.value;
+    return this._state$.getState();
   }
 
   get active() {
@@ -117,26 +180,10 @@ export class RouterOutletComponent {
     return this.state.selectedBySwitch;
   }
 
-  constructor(
-    private invariant: Invariant,
-    private router: Router,
-    private cdRef: ChangeDetectorRef,
-    @SkipSelf()
-    @Optional()
-    private parent: RouterOutletComponent,
-    @Host()
-    @Optional()
-    private parentSwitch: RouterSwitchComponent,
-  ) {
-    cdRef.detach();
-  }
-
   ngOnInit() {
-    this.invariant.assert(this._state$.value.path === null, 'A valid path must be provided');
-
     if (this.parent) {
       const parentStateSubscription = this.parent.observeState().subscribe(state =>
-        this.handleEvent({
+        this._state$.dispatch({
           type: 'PARENT_STATE_CHANGE',
           state,
         }),
@@ -146,16 +193,19 @@ export class RouterOutletComponent {
     }
 
     if (this.parentSwitch) {
-      this.handleEvent({ type: 'SWITCH_DETECTED' });
+      this._state$.dispatch({ type: 'SWITCH_DETECTED' });
+
       const switchSubscription = this.parentSwitch
         .addOutlet(this)
-        .subscribe(isSelected => this.handleEvent({ type: 'SWITCH_SELECT_OUTLET', isSelected }));
+        .subscribe(isSelected =>
+          this._state$.dispatch({ type: 'SWITCH_SELECT_OUTLET', isSelected }),
+        );
 
       this._subscriptions.add(switchSubscription);
     }
 
     const locationSubscription = this.router.subscribe(() =>
-      this.handleEvent({
+      this._state$.dispatch({
         type: 'BROWSER_LOCATION_CHANGE',
         path: this.router.path(),
       }),
@@ -166,66 +216,11 @@ export class RouterOutletComponent {
 
   ngOnDestroy() {
     this._subscriptions.unsubscribe();
+    this._state$.complete();
   }
 
   observeState(): Observable<RouterOutletState> {
-    return this._state$.asObservable();
-  }
-
-  reduceState(state: RouterOutletState, event: RouterOutletEvents): RouterOutletState {
-    switch (event.type) {
-      case 'PATH_ATTR_CHANGE': {
-        return checkIfOutletIsMatched({
-          ...state,
-          path: event.path,
-        });
-      }
-
-      case 'BROWSER_LOCATION_CHANGE': {
-        return checkIfOutletIsMatched({
-          ...state,
-          browserPath: event.path,
-        });
-      }
-
-      case 'PARENT_STATE_CHANGE': {
-        return checkIfOutletIsMatched({
-          ...state,
-          parent: event.state,
-        });
-      }
-
-      case 'SWITCH_DETECTED': {
-        return checkIfOutletIsMatched({
-          ...state,
-          selectedBySwitch: false,
-        });
-      }
-
-      case 'SWITCH_SELECT_OUTLET': {
-        return checkIfOutletIsMatched({
-          ...state,
-          selectedBySwitch: event.isSelected,
-        });
-      }
-
-      case 'EXACT_ATTR_CHANGE': {
-        return checkIfOutletIsMatched({
-          ...state,
-          mustBeExact: event.isExact,
-        });
-      }
-
-      default: {
-        return state;
-      }
-    }
-  }
-
-  handleEvent(event: RouterOutletEvents) {
-    const nextState = this.reduceState(this._state$.value, event);
-    this._state$.next(nextState);
-    this.cdRef.detectChanges();
+    return this._state$;
   }
 }
 

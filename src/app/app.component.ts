@@ -53,7 +53,7 @@ import { Component } from '@angular/core';
         </router-outlet>
       </router-outlet>
 
-      <router-outlet path="/(.*)">
+      <router-outlet>
         <ng-container *routerMatch>
           <h2>404 Not Found</h2>
         </ng-container>
